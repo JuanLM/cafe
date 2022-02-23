@@ -116,9 +116,7 @@ void setup(void)
   Serial.print("RRSI: ");
   Serial.println(WiFi.RSSI());
 
-  /* if (MDNS.begin("esp32")) {
-     Serial.println("MDNS responder started");
-    }*/
+  
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/esto.html");
   });
@@ -177,16 +175,9 @@ String pressure(void) {
 String temperature(void) {
 
   float fRt = (analogRead(TEMP_SENSOR_1) - analogRead(TEMP_SENSOR_2));
-  Serial.print("T1 ");
-  Serial.print(analogRead(TEMP_SENSOR_1));
-  Serial.print("    T2 ");
-  Serial.println(analogRead(TEMP_SENSOR_2));
-  //Serial.print("v ");
-  // Serial.println(analogRead(TEMP_SENSOR)*3.3/4095);
-
-  // Serial.print("Rt ");
-  // Serial.println(fRt);
-  return String(fRt);
+  Serial.print("T1-T2 ");
+  Serial.println(fRt);
+     return String(fRt);
 
   //return String(analogRead(TEMP_SENSOR)/100);
 
@@ -342,27 +333,6 @@ void loop(void)
 
 
 
-/*
-  void drawGraph() {
-  String out = "";
-  char temp[100];
-  out += "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\"400\" height=\"150\">\n";
-  out += "<rect width=\"400\" height=\"150\" fill=\"rgb(250, 230, 210)\" stroke-width=\"1\" stroke=\"rgb(0, 0, 0)\" />\n";
-  out += "<g stroke=\"black\">\n";
-  int y = temperature();
-  for (int x = 10; x < 390; x += 10) {
-    int y2 = rand() % 130;
-    sprintf(temp, "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke-width=\"1\" />\n", x, 140 - y, x + 10, 140 - y2);
-    out += temp;
-    y = y2;
-  }
-  out += "</g>\n</svg>\n";
-
-  server.send(200, "image/svg+xml", out);
-  }*/
-
-
-
 void writeFile(fs::FS &fs, const char * path, const char * message) {
   Serial.printf("Writing file: %s\r\n", path);
 
@@ -384,7 +354,7 @@ String readFile(fs::FS &fs, const char * path) {
   //Serial.printf("Reading file: %s\r\n", path);
   File file = fs.open(path, "r");
   if (!file || file.isDirectory()) {
-    Serial.printf("%s\r\n empty file or failed to open file",path);
+    Serial.printf("%s\r\n empty file or failed to open file", path);
     return String();
   }
   //Serial.println("- read from file:");
