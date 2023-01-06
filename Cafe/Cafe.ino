@@ -1,20 +1,32 @@
+#include <AutoPID.h>
+
+#include <Adafruit_MAX31865.h>
+//#include <ESP8266WiFi.h>
+#include <ArduinoOTA.h>
+
 
 #define PRES_SENSOR 3
 
-#define TEMP_SENSOR_1 34
-#define TEMP_SENSOR_2 35
+#define HEATER 32
 
-#define HEATER 33
-
-#define PUMP 32
+#define PUMP 35
 
 #define BTN_1 12
-#define BTN_2 23
+#define BTN_2 33
 #define BTN_3 13
 
 #define LED_1 18
 #define LED_2 19
 //#define LED_3 48
+
+//pid settings and gains
+#define OUTPUT_MIN 0
+#define OUTPUT_MAX 255
+#define KP .12
+#define KI .0003
+#define KD 0
+
+#define RREF 430
 
 #define BOUNCE_DURATION 1000 // define an appropriate bounce time in ms for your switches
 //#ifdef ESP32
@@ -35,10 +47,10 @@ volatile unsigned long bounceTime = 10; // variable to hold ms count to debounce
 
 
 //hw_timer_t * timer = NULL;
-const int iCafeTemp = 100;
+ int iCafeTemp = 100;
 const float fCafePres = 100;
 
-const int iLecheTemp = 300;
+ int iLecheTemp = 120;
 const float fLechePres = 9;
 
 bool bLecheTemp = 0;
@@ -54,6 +66,13 @@ typedef enum
   ECHAR_CAFE,
   ECHAR_LECHE,
 } State;
+const char* stateStr[] = {"Reposo",  
+"CALENTANDO_CAFE",
+"CALENTANDO_LECHE",
+ "CAFE_CALIENTE",
+  "LECHE_CALIENTE",
+  "ECHAR_CAFE",
+  "ECHAR_LECHE"}; 
 
 typedef enum
 {
@@ -63,8 +82,25 @@ typedef enum
   BOTON_START
 } Command;
 
+
 State iCurrentState = REPOSO;
 Command iCommand = NO_COMMAND;
+
+
+
+//pid
+//pid settings and gains
+#define OUTPUT_MIN 0
+#define OUTPUT_MAX 1
+#define KP .12
+#define KI .0003
+#define KD 0
+double  Dtemperature;
+double setPoint=iCafeTemp;
+double outputVal;
+AutoPID myPID(&Dtemperature, &setPoint, &outputVal, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
+
+unsigned long lastTempUpdate; 
 
 //cosas wifi*******************************************************************************************
 IPAddress local_IP(192, 168, 25, 129);
@@ -76,8 +112,7 @@ IPAddress subnet(255, 255, 255, 0);
 void setup(void)
 {
   Serial.begin(115200);
-  pinMode(TEMP_SENSOR_1, INPUT);
-  pinMode(TEMP_SENSOR_2, INPUT);
+
   pinMode(HEATER, OUTPUT);
   pinMode(PUMP, OUTPUT);
   pinMode(LED_1, OUTPUT);
@@ -87,8 +122,22 @@ void setup(void)
   pinMode(BTN_1, INPUT_PULLUP);
   pinMode(BTN_2, INPUT_PULLUP);
   pinMode(BTN_3, INPUT_PULLUP);
-  WiFi.mode(WIFI_STA);
+// Use software SPI: CS, DI, DO, CLK
+Adafruit_MAX31865 pt = Adafruit_MAX31865(27, 14, 25, 26);
+  //if temperature is more than 4 degrees below or above setpoint, OUTPUT will be set to min or max respectively
+  myPID.setBangBang(4);
+  //set PID update interval to 4000ms
+  myPID.setTimeStep(300);
 
+ 
+pt.begin(MAX31865_3WIRE);
+  WiFi.mode(WIFI_STA);
+// aqui lo del OTA...
+
+InitOTA();
+
+
+//doc7umentosssss
 
   if (!SPIFFS.begin()) {
     Serial.println("An Error has occurred while mounting SPIFFS");
@@ -123,9 +172,12 @@ void setup(void)
   server.on("/temperature", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send_P(200, "text/plain", temperature().c_str());
   });
-  server.on("/pressure", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send_P(200, "text/plain", pressure().c_str());
-  });
+   server.on("/status", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send_P(200, "text/plain", stateStr[iCurrentState]);
+   }); 
+//  server.on("/pressure", HTTP_GET, [](AsyncWebServerRequest * request) {
+//    request->send_P(200, "text/plain", pressure().c_str());
+//  });
 
   //  server.onNotFound(handleNotFound);
 
@@ -168,31 +220,44 @@ String pressure(void) {
 
   //Serial.print("p ");
   // Serial.println(analogRead(PRES_SENSOR)*3.3/4095);
-  return String(analogRead(PRES_SENSOR) / 4095 * 200 * 0.06894757);
+ // return String(analogRead(PRES_SENSOR) / 4095 * 200 * 0.06894757);
 
 }
 
 String temperature(void) {
 
-  float fRt = (analogRead(TEMP_SENSOR_1) - analogRead(TEMP_SENSOR_2));
-  Serial.print("T1-T2 ");
-  Serial.println(fRt);
-     return String(fRt);
 
-  //return String(analogRead(TEMP_SENSOR)/100);
+     Adafruit_MAX31865 pt = Adafruit_MAX31865(27, 14, 25, 26);
 
+ uint16_t rtd = pt.readRTD();
+   float ratio = rtd;
+  ratio /= 32768;
+  
+  Dtemperature= pt.temperature(100, RREF);
+    
+ return String(Dtemperature);
 
 }
 // control--------------------------------------------------------------------------------
 bool controlTemp (float fTempObj) {
-  if (temperature().toFloat()  <  0.8 * fTempObj) {
-    digitalWrite(HEATER, 1);
+ 
+
+
+
+  myPID.run(); //call every loop, updates automatically at certain time interval
+  digitalWrite(HEATER, outputVal);
+ return (myPID.atSetPoint(1));
+ 
+  /*if (temperature().toFloat()  <  0.88 * fTempObj) {
+    digitalWrite(HEATER, HIGH);
+    Serial.print(" heater  ");Serial.println("1");
     return 0;
   }
   else {
     digitalWrite(HEATER, 0);
+     Serial.print(" heater  ");Serial.println("0");
     return 1;
-  }
+  }*/
 }
 
 bool controlPres (float fPresObj)
@@ -205,7 +270,7 @@ bool controlPres (float fPresObj)
     digitalWrite(PUMP, 0);
     return 1;
   }
-}
+}//controlPress
 /*LOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOoooooooooooooooooOOOOOOOOOOP*/
 void loop(void)
 {
@@ -215,6 +280,7 @@ void loop(void)
       Serial.println(" Reposo  ");
       digitalWrite(HEATER, 0);
       digitalWrite(PUMP, 0);
+       ArduinoOTA.handle();
       switch (iCommand) {
         case BOTON_CAFE:
           iCurrentState = CALENTANDO_CAFE;
@@ -294,7 +360,8 @@ void loop(void)
       break;
 
     case ECHAR_CAFE:
-
+       digitalWrite(PUMP, 1);
+        bCafeTemp = controlTemp(iCafeTemp);
       Serial.println(" ECHAR_CAFE:  ");
       switch (iCommand) {
         case BOTON_LECHE:
@@ -326,7 +393,7 @@ void loop(void)
   }
 
 
-  digitalWrite(HEATER, 0);
+ // digitalWrite(HEATER, 0);
   digitalWrite(PUMP, 0);
   delay(1000);
 }
@@ -364,4 +431,60 @@ String readFile(fs::FS &fs, const char * path) {
   }
 
   return fileContent;
+}
+
+//ota
+void InitOTA()
+{
+// Port defaults to 8266
+// ArduinoOTA.setPort(8266);
+
+// Hostname defaults to esp8266-[ChipID]
+// ArduinoOTA.setHostname(hostname);
+
+// No authentication by default
+// ArduinoOTA.setPassword("admin");
+
+// Password can be set with it's md5 value as well
+// MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+// ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+ArduinoOTA.onStart([]() {
+   String type;
+   if (ArduinoOTA.getCommand() == U_FLASH) {
+      type = "sketch";
+   } else { // U_SPIFFS
+      type = "filesystem";
+   }
+
+   // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+   Serial.println("Start updating " + type);
+});
+
+ArduinoOTA.onEnd([]() {
+   Serial.println("\nEnd");
+});
+
+ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+   Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+});
+
+ArduinoOTA.onError([](ota_error_t error) {
+   Serial.printf("Error[%u]: ", error);
+   if (error == OTA_AUTH_ERROR) {
+      Serial.println("Auth Failed");
+   } else if (error == OTA_BEGIN_ERROR) {
+      Serial.println("Begin Failed");
+   } else if (error == OTA_CONNECT_ERROR) {
+      Serial.println("Connect Failed");
+   } else if (error == OTA_RECEIVE_ERROR) {
+      Serial.println("Receive Failed");
+   } else if (error == OTA_END_ERROR) {
+      Serial.println("End Failed");
+   }
+});
+
+ArduinoOTA.begin();
+Serial.println("");
+Serial.println("OTA iniciado");
 }

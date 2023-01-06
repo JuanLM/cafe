@@ -23,34 +23,16 @@ copies or substantial portions of the Software. -->
 </head>
 <body>
   <h2>ESP Coffe Maker</h2>
-  <label id = "GFG">
-Aqui deberia aparecer el estado
-</label>
   <div id="chart-temperature" class="container"></div>
-<script>
-
-setInterval(function ( ) {
-  var xhttp = new XMLHttpRequest();
-  xhttp.onreadystatechange = function() {
-  if (this.readyState == 4 && this.status == 200) {
-    var x = document.getElementById("GFG");
-		
-                x.innerHTML = this.responseText;
-    }
-   }; 
-	xhttp.open("GET", "/status", true);
-   xhttp.send();
-	},300 ) ;
-  
-</script>
+ <!--div id="chart-pressure" class="container"></div> -->
 </body>
 <script>
 var chartT = new Highcharts.Chart({
   chart:{ renderTo : 'chart-temperature' },
-  title: { text: "MIERDA" },
+  title: { text: 'Temperature' },
   series: [{
-    showInLegend: true,
-    data: [status]
+    showInLegend: false,
+    data: []
   }],
   plotOptions: {
     line: { animation: false,
@@ -67,8 +49,7 @@ var chartT = new Highcharts.Chart({
   },
   credits: { enabled: false }
 });
-setInterval(
-function ( ) {
+setInterval(function ( ) {
   var xhttp = new XMLHttpRequest();
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status == 200) {
@@ -82,15 +63,50 @@ function ( ) {
       }
     }
   };
-  xhttp.open("GET", "/temperature", true);  
+  xhttp.open("GET", "/temperature", true);
   xhttp.send();
- 
 }, 300 ) ;
 
+
+<!-- var chartP = new Highcharts.Chart({ -->
+  <!-- chart:{ renderTo:'chart-pressure' }, -->
+  <!-- title: { text: 'Pressure' }, -->
+  <!-- series: [{ -->
+    <!-- showInLegend: false, -->
+    <!-- data: [] -->
+  <!-- }], -->
+  <!-- plotOptions: { -->
+    <!-- line: { animation: false, -->
+      <!-- dataLabels: { enabled: true } -->
+    <!-- }, -->
+    <!-- series: { color: '#18009c' } -->
+  <!-- }, -->
+  <!-- xAxis: { -->
+    <!-- type: 'datetime', -->
+    <!-- dateTimeLabelFormats: { second: '%H:%M:%S' } -->
+  <!-- }, -->
+  <!-- yAxis: { -->
+    <!-- title: { text: 'Pressure (hPa)' } -->
+  <!-- }, -->
+  <!-- credits: { enabled: false } -->
+<!-- }); -->
+<!-- setInterval(function ( ) { -->
+  <!-- var xhttp = new XMLHttpRequest(); -->
+  <!-- xhttp.onreadystatechange = function() { -->
+    <!-- if (this.readyState == 4 && this.status == 200) { -->
+      <!-- var x = new Date().getTime(), -->
+          <!-- y = parseFloat(this.responseText); -->
+      <!-- //console.log(this.responseText); -->
+      <!-- if(chartP.series[0].data.length > 40) { -->
+        <!-- chartP.series[0].addPoint([x, y], true, true, true); -->
+      <!-- } else { -->
+        <!-- chartP.series[0].addPoint([x, y], true, false, true); -->
+      <!-- } -->
+    <!-- } -->
+  <!-- }; -->
+  <!-- xhttp.open("GET", "/pressure", true); -->
+  <!-- xhttp.send(); -->
+<!-- }, 300 ) ; -->
+
 </script>
-
-
-
-
-
 </html>
